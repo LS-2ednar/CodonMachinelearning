@@ -11,7 +11,7 @@ data.Kingdom = categorical(data.Kingdom);
 %checking for missing values
 missing = sum(sum(ismissing(data)));
 % 3 enteries are missing these enteries are found in two lines 
-% which are removed                                                                   !!!!!!!!!!!!!!!!
+% which are removed 
 
 %get index of missing data 
 badEntry = ismissing(data);
@@ -59,97 +59,215 @@ text(10,0.15,'k = 5 equals to minmal loss 0.0645')
 min(crossvalloss(:,2))
 
 % --> HERE PLOT
-% --> HERE PLOT
-% --> HERE PLOT
-% --> HERE PLOT
-% --> HERE PLOT
-% --> HERE PLOT
 
 %For kNN Mdl use k = 5 for minimal loss
 
-%% Classifier kNN in action with crossvalidation.
+%% Classifier kNN and Naive Bayes in action with crossvalidation.
 %Parameters for kNN Classifier
 ValidationHoldout = 0.3;
 kSet              = 5;
 
 %Create kNN-Model and define crossvalisation holdout
-Mdl = fitcknn(data, 'Kingdom','NumNeighbors', kSet);
-cv  = cvpartition(Mdl.NumObservations,'HoldOut',ValidationHoldout);
+kMdl = fitcknn(data, 'Kingdom','NumNeighbors', kSet);
+kcv  = cvpartition(kMdl.NumObservations,'HoldOut',ValidationHoldout);
 
-%create cvMdl --> for prediction
-cvMdl = crossval(Mdl,'cvpartition',cv);
+%Create Naive Bayes Model and define cossvalidation holdout
+NBMdl = fitcnb(data, 'Kingdom');
+NBcv  = cvpartition(NBMdl.NumObservations, 'HoldOut',ValidationHoldout);
 
-%Prediction
-Predictions = predict(cvMdl.Trained{1},data(test(cv),1:end));
+%create kcvMdl & NBcvMdl --> for predictions
+kcvMdl = crossval(kMdl,'cvpartition',kcv);
+NBcvMdl = crossval(NBMdl,'cvpartition',NBcv);
+
+%Predictions
+kPredictions = predict(kcvMdl.Trained{1},data(test(kcv),1:end));
+NBPredictions = predict(NBcvMdl.Trained{1},data(test(NBcv),1:end));
 
 %confusionmatrix for validation
-Results = confusionmat(cvMdl.Y(test(cv)),Predictions);
+kResults = confusionmat(kcvMdl.Y(test(kcv)),kPredictions);
+NBResukts = confusionmat(NBcvMdl.Y(test(NBcv)),NBPredictions);
 
-%Plot Results
-predictedY = resubPredict(Mdl);
+%Plot kNN Results
+kpredictedY = resubPredict(kMdl);
 
 figure()
-cm = confusionchart(yValues,predictedY);
-cm.NormalizedValues
-cm.RowSummary = 'row-normalized';
-cm.ColumnSummary = 'column-normalized';
+Orgcm = confusionchart(yValues,kpredictedY);
+Orgcm.NormalizedValues
+Orgcm.RowSummary = 'row-normalized';
+Orgcm.ColumnSummary = 'column-normalized';
 
-for i = 1:height(cm.NormalizedValues)
-    sum(sum(cm.NormalizedValues(i,:)))
+
+%%
+% The following is concluded 
+
+%----------------------------------------%
+%     Data Reorganization is needed      %
+%----------------------------------------%
+
+%excluding plm
+plm = find(data.Kingdom=='plm');
+data(plm,:) = [];
+
+
+%combining pln,vrt,inv,man,rod, and pri as euk
+%get inices
+pln = find(data.Kingdom == 'pln');
+inv = find(data.Kingdom == 'inv');
+vrt = find(data.Kingdom == 'vrt');
+mam = find(data.Kingdom == 'mam');
+rod = find(data.Kingdom == 'rod');
+pri = find(data.Kingdom == 'pri');
+%change class
+data.Kingdom(pln) = 'euk';
+data.Kingdom(inv) = 'euk';
+data.Kingdom(vrt) = 'euk';
+data.Kingdom(mam) = 'euk';
+data.Kingdom(rod) = 'euk';
+data.Kingdom(pri) = 'euk';
+%adding phg to vrl
+phg = find(data.Kingdom == 'phg');
+data.Kingdom(phg) = 'vrl';
+%new number of classes is 5
+unique(data.Kingdom)
+
+%save data in new variable
+newdata = data;
+newdata.Kingdom = setcats(newdata.Kingdom,{'arc','bct','vrl','euk'});
+struct(newdata.Kingdom)
+
+%
+nyValues = newdata.Kingdom;
+%% New Data kNN Classifier Qualitycheck ~2min runtime
+
+% find k for minimal loss
+crossvalloss= [];
+tic()
+xValues = newdata(:,2:end);
+nyValues = newdata.Kingdom;
+for k = 5:50 
+    disp(['Working: ',num2str((k-5)/45*100),'% done'])
+    Mdl          = fitcknn(xValues,yValues,'NumNeighbors',k); 
+    cvMdl        = crossval(Mdl);
+    cvMdlloss    = kfoldLoss(cvMdl);
+    crossvalloss = cat(1, crossvalloss, [k cvMdlloss]);
 end
+toc()
 
-% Figure indicates that "plm" class is not easy to be determined therfore
-% further investigation is performed on the dataset
-% % %% Further dataset investigation
-% % plm = find(data.Kingdom=='plm');
-% % new_data= data;
-% % new_data(plm,:) = [];
-% % 
-% % 
-% % %Visualization to check for outliers
-% % xValues = table2array(new_data(:,2:end));
-% % yValues = categorical(table2array(new_data(:,1)));
-% % figure()
-% % subplot(1,2,1)
-% % surf(xValues)
-% % xlabel('Codons')
-% % ylabel('Observations')
-% % zlabel('Codonusage')
-% % title('Codon usage')
-% % subplot(1,2,2)
-% % plot(yValues)
-% % xlabel('Observations')
-% % xlim([1, length(xValues)])
-% % title('Classes')
-% % sgtitle(['Modified Data Distribution of ', num2str(length(xValues)), ' Observations'])
+%% Plot of new Quality Check
+figure()
+plot(crossvalloss(:,1),crossvalloss(:,2))
+title('kNNLoss')
+xlabel('k')
+ylabel('Loss')
+text(10,0.15,'k = 5 equals to minmal loss 0.0790')
+min(crossvalloss(:,2))
+text(10,0.1,'k = 5')
+text(10,0.0965,'Loss = 0.0507')
 
-%% Modified observations kNN
+%% Classifier kNN and Naive Bayes in action with crossvalidation.
+%Parameters for kNN Classifier
+ValidationHoldout = 0.3;
+kSet              = 5;
+
+%Create kNN-Model and define crossvalisation holdout
+nkMdl = fitcknn(newdata, 'Kingdom','NumNeighbors', kSet);
+nkcv  = cvpartition(nkMdl.NumObservations,'HoldOut',ValidationHoldout);
+
+%create kcvMdl & NBcvMdl --> for predictions
+nkcvMdl = crossval(nkMdl,'cvpartition',nkcv);
 
 
+%Predictions
+nkPredictions = predict(nkcvMdl.Trained{1},data(test(nkcv),1:end));
 
-% %% Classifier kNN in action with crossvalidation.
-% %Parameters for kNN Classifier
-% ValidationHoldout = 0.3;
-% kSet              = 5;
+%confusionmatrix for validation
+nkResults = confusionmat(nkcvMdl.Y(test(nkcv)),nkPredictions);
+
+%Plot kNN Results
+nkpredictedY = resubPredict(nkMdl);
+
+figure()
+% subplot(1,2,1)
+% Orgcm = confusionchart(yValues,kpredictedY);
+% Orgcm.NormalizedValues
+% Orgcm.RowSummary = 'row-normalized';
+% Orgcm.ColumnSummary = 'column-normalized';
 % 
-% %Create kNN-Model and define crossvalisation holdout
-% Mdl = fitcknn(new_data, 'Kingdom','NumNeighbors', kSet);
-% cv  = cvpartition(Mdl.NumObservations,'HoldOut',ValidationHoldout);
-% 
-% %create cvMdl --> for prediction
-% cvMdl = crossval(Mdl,'cvpartition',cv);
-% 
-% %Prediction
-% Predictions = predict(cvMdl.Trained{1},new_data(test(cv),1:end));
-% 
-% %confusionmatrix for validation
-% Results = confusionmat(cvMdl.Y(test(cv)),Predictions);
-% 
-% %Plot Results
-% predictedY = resubPredict(Mdl);
-% 
-% figure()
-% cm = confusionchart(yValues,predictedY);
-% cm.NormalizedValues
-% cm.RowSummary = 'row-normalized';
-% cm.ColumnSummary = 'column-normalized';
+% subplot(1,2,2)
+Ncm = confusionchart(nyValues,nkpredictedY);
+Ncm.NormalizedValues
+Ncm.RowSummary = 'row-normalized';
+Ncm.ColumnSummary = 'column-normalized';
+
+% Data is nolonger evenly distributed which is why hte arc group was kicked
+% out and giveing each class identical weights
+%% create newestdataset
+%remove arc
+newdata(find(newdata.Kingdom == 'arc'),:) = [];
+newestdata = newdata;
+%set new categories
+newestdata.Kingdom = setcats(newestdata.Kingdom,{'bct','vrl','euk'});
+struct(newestdata.Kingdom)
+
+%get indices for each Kingdom
+bct = find(data.Kingdom == 'bct');
+vrl = find(data.Kingdom == 'vrl');
+euk = find(data.Kingdom == 'euk');
+%%
+
+%Number to weight all data evenly
+NumCU = 2000;
+kTest = 5;
+ValidationHoldout = 0.3;
+
+%%%
+%start for loop
+%%%
+
+%get random samples
+indices = randperm(length(bct));
+rbct = indices(1:NumCU);
+indices = randperm(length(vrl));
+rvrl = indices(1:NumCU);
+indices = randperm(length(euk));
+reuk = indices(1:NumCU);
+
+%Create final randomicesed dataset 
+testindices = [rbct;rvrl;reuk];
+testdata = newestdata(testindices,:);
+TyValues = testdata.Kingdom;
+
+%-------------%
+%kNN Clasifier%
+%-------------%
+%Parameters for kNN Classifier
+
+%Create kNN-Model and define crossvalisation holdout
+nkMdl = fitcknn(testdata, 'Kingdom','NumNeighbors', kTest);
+nkcv  = cvpartition(nkMdl.NumObservations,'HoldOut',ValidationHoldout);
+
+%create kcvMdl & NBcvMdl --> for predictions
+nkcvMdl = crossval(nkMdl,'cvpartition',nkcv);
+
+%Predictions
+nkPredictions = predict(nkcvMdl.Trained{1},data(test(nkcv),1:end));
+
+%confusionmatrix for validation
+nkResults = confusionmat(nkcvMdl.Y(test(nkcv)),nkPredictions);
+
+%Plot kNN Results
+nkpredictedY = resubPredict(nkMdl);
+
+figure()
+Ncm = confusionchart(TyValues,nkpredictedY);
+Ncm.NormalizedValues
+Ncm.RowSummary = 'row-normalized';
+Ncm.ColumnSummary = 'column-normalized';
+
+
+%hier stimmt noch was nicht :-S nochmasl anschauen
+
+
+% %%%
+% %End for loop
+% %%%
