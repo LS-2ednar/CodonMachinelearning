@@ -108,7 +108,6 @@ Orgcm.ColumnSummary = 'column-normalized';
 plm = find(data.Kingdom=='plm');
 data(plm,:) = [];
 
-
 %combining pln,vrt,inv,man,rod, and pri as euk
 %get inices
 pln = find(data.Kingdom == 'pln');
@@ -124,9 +123,11 @@ data.Kingdom(vrt) = 'euk';
 data.Kingdom(mam) = 'euk';
 data.Kingdom(rod) = 'euk';
 data.Kingdom(pri) = 'euk';
+
 %adding phg to vrl
 phg = find(data.Kingdom == 'phg');
 data.Kingdom(phg) = 'vrl';
+
 %new number of classes is 5
 unique(data.Kingdom)
 
@@ -135,8 +136,6 @@ newdata = data;
 newdata.Kingdom = setcats(newdata.Kingdom,{'arc','bct','vrl','euk'});
 struct(newdata.Kingdom)
 
-%
-nyValues = newdata.Kingdom;
 %% New Data kNN Classifier Qualitycheck ~2min runtime
 
 % find k for minimal loss
@@ -208,33 +207,60 @@ newestdata = newdata;
 %set new categories
 newestdata.Kingdom = setcats(newestdata.Kingdom,{'bct','vrl','euk'});
 struct(newestdata.Kingdom)
-
-%get indices for each Kingdom
-bct = find(data.Kingdom == 'bct');
-vrl = find(data.Kingdom == 'vrl');
-euk = find(data.Kingdom == 'euk');
 %%
 
 %Number to weight all data evenly
 NumCU = 2000;
 kTest = 5;
 ValidationHoldout = 0.3;
+Runs = 5000
+
+
+%Initializations please dont touch
+acc = [];
+
+%get get individual data for each class
+bct = newestdata(find(newestdata.Kingdom == 'bct'),:);
+vrl = newestdata(find(newestdata.Kingdom == 'vrl'),:);
+euk = newestdata(find(newestdata.Kingdom == 'euk'),:);
 
 %%%
 %start for loop
 %%%
+for i = 1:Runs
 
-%get random samples
-indices = randperm(length(bct));
-rbct = indices(1:NumCU);
-indices = randperm(length(vrl));
-rvrl = indices(1:NumCU);
-indices = randperm(length(euk));
-reuk = indices(1:NumCU);
+fprintf('%i Runs DONE out of %i\n', (i-1),Runs)
+
+
+%picking data
+%-----------%
+%getin randomized and equaly weight bacterial data:
+%random in species
+rnumbrs = randperm(size(bct,1));
+%choose indexes
+rindex = rnumbrs(1:NumCU);
+%get data
+rbct = bct(rindex,:);
+
+%random in species
+rnumbrs = randperm(size(vrl,1));
+%choose indexes
+rindex = rnumbrs(1:NumCU);
+%get data
+rvrl = vrl(rindex,:);
+
+
+%random in species
+rnumbrs = randperm(size(euk,1));
+%choose indexes
+rindex = rnumbrs(1:NumCU);
+%get data
+reuk = euk(rindex,:);
 
 %Create final randomicesed dataset 
-testindices = [rbct;rvrl;reuk];
-testdata = newestdata(testindices,:);
+testdata  = [rbct;rvrl;reuk];
+testindex = randperm(size(testdata,1));
+testdata = testdata(testindex,:);
 TyValues = testdata.Kingdom;
 
 %-------------%
@@ -258,16 +284,53 @@ nkResults = confusionmat(nkcvMdl.Y(test(nkcv)),nkPredictions);
 %Plot kNN Results
 nkpredictedY = resubPredict(nkMdl);
 
+% figure()
+Ncm = confusionchart(TyValues,nkpredictedY);
+% Ncm.NormalizedValues;
+% Ncm.RowSummary = 'row-normalized';
+% Ncm.ColumnSummary = 'column-normalized';
+
+%Bacteria
+hit   = Ncm.NormalizedValues(1,1);
+total = sum(Ncm.NormalizedValues(1,:));
+accBct= hit/total;
+%Viruses
+hit   = Ncm.NormalizedValues(2,2);
+total = sum(Ncm.NormalizedValues(2,:));
+accVrl= hit/total;
+%
+%Viruses
+hit   = Ncm.NormalizedValues(3,3);
+total = sum(Ncm.NormalizedValues(3,:));
+accEuk= hit/total;
+
+addition = [accBct,accVrl,accEuk];
+acc = [acc;addition];
+% Means ausgeben und mittelwerte berechnen
+% treffer durch total
+
+end
 figure()
 Ncm = confusionchart(TyValues,nkpredictedY);
-Ncm.NormalizedValues
+Ncm.NormalizedValues;
 Ncm.RowSummary = 'row-normalized';
 Ncm.ColumnSummary = 'column-normalized';
-
-
-%hier stimmt noch was nicht :-S nochmasl anschauen
 
 
 % %%%
 % %End for loop
 % %%%
+
+%Evalueate accuary to fit something correctly in specified class
+% disp(acc)
+
+mBct = mean(acc(:,1));
+mVrl = mean(acc(:,2));
+mEuk = mean(acc(:,3));
+
+means = [mBct,mVrl,mEuk];
+
+
+%%
+means
+
