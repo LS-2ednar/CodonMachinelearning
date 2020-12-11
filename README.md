@@ -6,7 +6,7 @@ The goal of this project is the implementation of a machine learning algorithm, 
 ---------------
 
 #### This is a studenproject see the link to the original paper below
-*Source*: [Codon Usage Bias Levels Predict Taxonomic Identity and Genetic (Composition Khomtchouk 2020)](https://www.biorxiv.org/content/10.1101/2020.10.26.356295v1)
-#### please see the original paper for the used datafile
+**Source**: [Codon Usage Bias Levels Predict Taxonomic Identity and Genetic (Composition Khomtchouk 2020)](https://www.biorxiv.org/content/10.1101/2020.10.26.356295v1)
+#### Used data avaible at the original source
 
 ---------------
